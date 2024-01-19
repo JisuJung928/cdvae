@@ -9,7 +9,8 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig
 from torch.utils.data import Dataset
-from torch_geometric.data import DataLoader
+#from torch_geometric.data import DataLoader
+from torch_geometric.loader import DataLoader
 
 from cdvae.common.utils import PROJECT_ROOT
 from cdvae.common.data_utils import get_scaler_from_data_list
