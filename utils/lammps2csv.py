@@ -1,8 +1,7 @@
 import os
-import sys
+import numpy as np
 import pandas as pd
 import argparse
-from braceexpand import braceexpand
 
 from ase import io
 from ase.data import atomic_numbers
@@ -28,19 +27,24 @@ def parse_log(filename):
 
 def main(args):
     """
-    python lammps2csv.py "structure_path" "log_path" --atomic_symbols Si O ...
-    Be careful for quotation marks.
+    python lammps2csv.py --structure_files structure_1 structure_2 ...
+                         --log_files log_1 log_2 ...
+                         --atomic_symbols Si O ...
     """
-    structure_list = list(braceexpand(args.structure_path))
-    log_list = list(braceexpand(args.log_path))
-    if len(structure_list) != len(log_list):
-        sys.exit("Mismatch!\n")
+    assert len(args.structure_files) == len(
+        args.log_files
+    ), "# of structure and log are different."
     csv = pd.DataFrame(columns=["material_id", "free_energy", "cif"])
-    for count, (structure, log) in enumerate(zip(structure_list, log_list)):
+    for count, (structure, log) in enumerate(zip(args.structure_files, args.log_files)):
         try:
             structure = io.read(structure, format="lammps-data", style="atomic")
         except Exception:
             print(f"{structure} does not exist\n")
+            continue
+        distance = structure.get_all_distances(mic=True)
+        distance = distance[np.triu_indices(len(structure), 1)]
+        if np.min(distance) < 0.5:
+            print(f"{structure} has the site occupancy larger than 1.\n")
             continue
         for i in range(len(structure)):
             structure.numbers[i] = atomic_numbers[
@@ -62,6 +66,7 @@ def main(args):
             ignore_index=True,
         )
         os.remove("tmp.cif")
+        print(f"{count + 1} / {len(args.structure_files)}")
     # split data into train(6):valid(2):test(2)
     train = csv.sample(frac=0.6)
     test = csv.drop(train.index)
@@ -75,8 +80,10 @@ def main(args):
 
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
-    args.add_argument("structure_path", help="path of lammps structure files", type=str)
-    args.add_argument("log_path", help="path of lammps log files", type=str)
+    args.add_argument(
+        "--structure_files", nargs="*", help="lammps structure files", required=True
+    )
+    args.add_argument("--log_files", nargs="*", help="lammps log files", required=True)
     args.add_argument(
         "--atomic_symbols", nargs="*", help="Atomic symbols", required=True
     )
